@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Linq;
 using System.Reflection;
 using System.Reflection.Metadata;
+using System.Reflection.Metadata.Ecma335;
 
 namespace MetadataAssembly
 {
@@ -22,6 +23,8 @@ namespace MetadataAssembly
             _handle = handle;
             _metadata = ((MetadataAssembly)type.Assembly).Metadata;
         }
+
+        public override int MetadataToken => MetadataTokens.GetToken(_metadata, _handle);
 
         public override FieldAttributes Attributes => Definition.Attributes;
 

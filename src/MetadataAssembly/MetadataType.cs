@@ -37,17 +37,17 @@ namespace MetadataAssembly
 
         private MetadataType[] _nestedTypes;
 
-        private int[] _fieldTokens;
+        private int _fieldStartingRow;
 
-        private int[] _methodTokens;
+        private int _eventStartingRow;
 
-        private int[] _eventTokens;
+        private int _nestedTypeStartingRow;
 
-        private int[] _nestedTypeTokens;
+        private int _propertyStartingRow;
 
         private int[] _constructorTokens;
 
-        private int[] _propertyTokens;
+        private int[] _methodTokens;
 
         private MetadataType[] _genericParameters;
 
@@ -334,7 +334,7 @@ namespace MetadataAssembly
         {
             if (!Util.TryGetAsMetadataTypes(types, out MetadataType[] metadataTypes))
             {
-                throw NewNotMetadataTypeException(nameof(types));
+                throw Error.NewNotMetadataTypeException(nameof(types));
             }
 
             return GetMetadataConstructor(
@@ -355,7 +355,7 @@ namespace MetadataAssembly
         {
             if (!Util.TryGetAsMetadataTypes(types, out MetadataType[] metadataTypes))
             {
-                throw NewNotMetadataTypeException(nameof(types));
+                throw Error.NewNotMetadataTypeException(nameof(types));
             }
 
             return GetMetadataMethod(
@@ -377,12 +377,12 @@ namespace MetadataAssembly
         {
             if (returnType != null && !(returnType is MetadataType))
             {
-                throw NewNotMetadataTypeException(nameof(returnType));
+                throw Error.NewNotMetadataTypeException(nameof(returnType));
             }
 
             if (!Util.TryGetAsMetadataTypes(types, out MetadataType[] metadataTypes))
             {
-                throw NewNotMetadataTypeException(nameof(types));
+                throw Error.NewNotMetadataTypeException(nameof(types));
             }
 
             return GetMetadataProperty(
@@ -481,9 +481,14 @@ namespace MetadataAssembly
 
         internal MetadataFieldInfo GetMetadataField(int metadataToken)
         {
-            MaybeLoadFields(shouldCacheTokens: true);
-            var index = Array.IndexOf(_fieldTokens, metadataToken);
-            return index == -1 ? null : _fields[index];
+            MaybeLoadFields();
+            return _fields[
+                GetTokenIndex(
+                    metadataToken,
+                    TokenKind.FieldDefinition,
+                    _fieldStartingRow,
+                    _fields.Length,
+                    nameof(metadataToken))];
         }
 
         internal MetadataMethodInfo GetMetadataMethod(int metadataToken)
@@ -502,35 +507,44 @@ namespace MetadataAssembly
 
         internal MetadataPropertyInfo GetMetadataProperty(int metadataToken)
         {
-            MaybeLoadProperties(shouldCacheTokens: true);
-            var index = Array.IndexOf(_propertyTokens, metadataToken);
-            return index == -1 ? null : _properties[index];
+            MaybeLoadProperties();
+            return _properties[
+                GetTokenIndex(
+                    metadataToken,
+                    TokenKind.Property,
+                    _propertyStartingRow,
+                    _properties.Length,
+                    nameof(metadataToken))];
         }
 
         internal MetadataEventInfo GetMetadataEvent(int metadataToken)
         {
-            MaybeLoadEvents(shouldCacheTokens: true);
-            var index = Array.IndexOf(_eventTokens, metadataToken);
-            return index == -1 ? null : _events[index];
+            MaybeLoadEvents();
+            return _events[
+                GetTokenIndex(
+                    metadataToken,
+                    TokenKind.Event,
+                    _eventStartingRow,
+                    _events.Length,
+                    nameof(metadataToken))];
         }
 
         internal MetadataType GetNestedMetadataType(int metadataToken)
         {
-            MaybeLoadTypes(shouldCacheTokens: true);
-            var index = Array.IndexOf(_nestedTypeTokens, metadataToken);
-            return index == -1 ? null : _nestedTypes[index];
+            MaybeLoadTypes();
+            return _nestedTypes[
+                GetTokenIndex(
+                    metadataToken,
+                    TokenKind.TypeDefinition,
+                    _nestedTypeStartingRow,
+                    _nestedTypes.Length,
+                    nameof(metadataToken))];
         }
 
-        private void MaybeLoadEvents(bool shouldCacheTokens = false)
+        private void MaybeLoadEvents()
         {
             if (_events != null)
             {
-                if (!shouldCacheTokens)
-                {
-                    return;
-                }
-
-                MaybeCacheTokens(_events, ref _eventTokens);
                 return;
             }
 
@@ -543,36 +557,25 @@ namespace MetadataAssembly
             var events = new MetadataEventInfo[Definition.GetEvents().Count];
             if (events.Length == 0)
             {
-                _eventTokens = Empty<int>.Array;
                 _events = events;
                 return;
             }
 
-            int firstRowNumber = MetadataTokens.GetRowNumber(Definition.GetEvents().First());
+            _eventStartingRow = MetadataTokens.GetRowNumber(Definition.GetEvents().First());
             for (var i = 0; i < events.Length; i++)
             {
                 events[i] = new MetadataEventInfo(
                     this,
-                    MetadataTokens.EventDefinitionHandle(i + firstRowNumber));
+                    MetadataTokens.EventDefinitionHandle(i + _eventStartingRow));
             }
 
             _events = events;
-            if (shouldCacheTokens)
-            {
-                MaybeCacheTokens(_events, ref _eventTokens);
-            }
         }
 
-        private void MaybeLoadFields(bool shouldCacheTokens = false)
+        private void MaybeLoadFields()
         {
             if (_fields != null)
             {
-                if (!shouldCacheTokens)
-                {
-                    return;
-                }
-
-                MaybeCacheTokens(_fields, ref _fieldTokens);
                 return;
             }
 
@@ -580,36 +583,24 @@ namespace MetadataAssembly
             if (fields.Length == 0)
             {
                 _fields = fields;
-                _fieldTokens = Empty<int>.Array;
                 return;
             }
 
-            int firstRowNumber = MetadataTokens.GetRowNumber(Definition.GetFields().First());
-
+            _fieldStartingRow = MetadataTokens.GetRowNumber(Definition.GetFields().First());
             for (var i = 0; i < fields.Length; i++)
             {
                 fields[i] = new MetadataFieldInfo(
                     this,
-                    MetadataTokens.FieldDefinitionHandle(i + firstRowNumber));
+                    MetadataTokens.FieldDefinitionHandle(i + _fieldStartingRow));
             }
 
             _fields = fields;
-            if (shouldCacheTokens)
-            {
-                MaybeCacheTokens(_fields, ref _fieldTokens);
-            }
         }
 
-        private void MaybeLoadProperties(bool shouldCacheTokens = false)
+        private void MaybeLoadProperties()
         {
             if (_properties != null)
             {
-                if (!shouldCacheTokens)
-                {
-                    return;
-                }
-
-                MaybeCacheTokens(_properties, ref _propertyTokens);
                 return;
             }
 
@@ -617,35 +608,24 @@ namespace MetadataAssembly
             if (properties.Length == 0)
             {
                 _properties = properties;
-                _propertyTokens = Empty<int>.Array;
                 return;
             }
 
-            int firstRowNumber = MetadataTokens.GetRowNumber(Definition.GetProperties().First());
+            _propertyStartingRow = MetadataTokens.GetRowNumber(Definition.GetProperties().First());
             for (var i = 0; i < properties.Length; i++)
             {
                 properties[i] = new MetadataPropertyInfo(
                     this,
-                    MetadataTokens.PropertyDefinitionHandle(i + firstRowNumber));
+                    MetadataTokens.PropertyDefinitionHandle(i + _propertyStartingRow));
             }
 
             _properties = properties;
-            if (shouldCacheTokens)
-            {
-                MaybeCacheTokens(_properties, ref _propertyTokens);
-            }
         }
 
-        private void MaybeLoadTypes(bool shouldCacheTokens = false)
+        private void MaybeLoadTypes()
         {
             if (_nestedTypes != null)
             {
-                if (!shouldCacheTokens)
-                {
-                    return;
-                }
-
-                MaybeCacheTokens(_nestedTypes, ref _nestedTypeTokens);
                 return;
             }
 
@@ -658,6 +638,7 @@ namespace MetadataAssembly
             var typeHandles = Definition.GetNestedTypes();
             var types = new MetadataType[typeHandles.Length];
             var i = 0;
+            _nestedTypeStartingRow = MetadataTokens.GetRowNumber(typeHandles.First());
             foreach (TypeDefinitionHandle typeHandle in typeHandles)
             {
                 types[i] = new MetadataType(this, typeHandle);
@@ -665,14 +646,12 @@ namespace MetadataAssembly
             }
 
             _nestedTypes = types;
-            if (shouldCacheTokens)
-            {
-                MaybeCacheTokens(_nestedTypes, ref _nestedTypeTokens);
-            }
         }
 
         private void MaybeCacheTokens(MemberInfo[] members, ref int[] tokens)
         {
+            // Since methods and constructors and lumped into one table we can't use the
+            // row number from the token to get the index.
             if (tokens != null)
             {
                 return;
@@ -865,9 +844,25 @@ namespace MetadataAssembly
                 .ToArray();
         }
 
-        private ArgumentException NewNotMetadataTypeException(string parameterName)
+        private int GetTokenIndex(
+            int metadataToken,
+            TokenKind expectedKind,
+            int startingRow,
+            int arrayLength,
+            string parameterName)
         {
-            return new ArgumentException("Specified Type must be a MetadataType.", parameterName);
+            if (Util.GetTokenKind(metadataToken) != expectedKind)
+            {
+                throw Error.NewInvalidMetadataTokenException(metadataToken, parameterName);
+            }
+
+            var index = Util.GetRowOffset(metadataToken, startingRow);
+            if (index >= arrayLength)
+            {
+                throw new ArgumentOutOfRangeException(parameterName);
+            }
+
+            return index;
         }
     }
 }

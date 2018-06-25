@@ -150,13 +150,12 @@ namespace MetadataAssembly
         internal MetadataType GetType(int metadataToken)
         {
             MaybeLoadTypes();
-            int index = Array.IndexOf(_tokens, metadataToken);
-            if (index == -1)
+            if (Util.GetTokenKind(metadataToken) != TokenKind.TypeDefinition)
             {
-                return null;
+                throw Error.NewInvalidMetadataTokenException(metadataToken, nameof(metadataToken));
             }
 
-            return _types[index];
+            return _types[Util.GetRowOffset(metadataToken, 2)];
         }
 
         private MetadataType GetTypeImpl(string name, bool throwOnError = false, bool ignoreCase = false)
@@ -191,16 +190,14 @@ namespace MetadataAssembly
                 return;
             }
 
-            var types = new MetadataType[Metadata.TypeDefinitions.Count];
-            var tokens = new int[Metadata.TypeDefinitions.Count];
+            // Skip the first type which is the special "<Module>" type.
+            var types = new MetadataType[Metadata.TypeDefinitions.Count - 1];
             for (var i = 0; i < types.Length; i++)
             {
-                types[i] = new MetadataType(this, MetadataTokens.TypeDefinitionHandle(i + 1));
-                tokens[i] = types[i].MetadataToken;
+                types[i] = new MetadataType(this, MetadataTokens.TypeDefinitionHandle(i + 2));
             }
 
             _types = types;
-            _tokens = tokens;
         }
     }
 }

@@ -16,6 +16,18 @@ namespace MetadataAssembly
 
         private static Dictionary<PrimitiveTypeCode, MetadataType> s_primitiveToType;
 
+        internal static int GetRowOffset(int metadataToken, int startingRow)
+        {
+            // The last three bytes of the metadata token is the row number (for most metadata kinds)
+            return ((metadataToken << 8) >> 8) - startingRow;
+        }
+
+        internal static TokenKind GetTokenKind(int metadataToken)
+        {
+            // The first byte of the metadata token is the token kind.
+            return (TokenKind)(metadataToken >> 24);
+        }
+
         internal static AssemblyName GetAssemblyName(MetadataReader metadata, AssemblyReference assembly)
         {
             var name = new AssemblyName(metadata.GetString(assembly.Name));
